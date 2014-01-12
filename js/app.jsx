@@ -206,45 +206,45 @@
       else return [false, [ev]] // Operating as normal...
     },
 
-    filterUndo: function(ab) {
-      var a = ab[0], b = ab[1];
-      console.log("Filterundo:");
-      console.log(a);
-      console.log(b);
-      if(("_UNDO" in a) || ("_UNDO" in b)) {
-        return (("_UNDO" in a)===true) && (a._UNDO==false)
-      } else {return true}
-    },
-
     myPush: function(val) {
-      console.assert(typeof val == 'function');
       this.state.history.push(val);
       this.setState();
     },
 
-    deleteItem: function(which) {
+    deleteItem: function(which, isRedo) {
       // This is implementation specific but we could easily make this a callback props
       which.lens("_UNDO").set(true);
-      which.lens('deleted').set(true);
+      if( isRedo ) {
+        which.lens('deleted').set(false);
+      } else {
+        which.lens('deleted').set(true);
+      }
       which.lens("_UNDO").set(false);
     },
 
     onModelChange: function(item, ab) {
-      // When a model changes, the undoing of this is to push the old model value
-      this.myPush( function() {
+      this.myPush(function(isRedo) {
         item.lens("_UNDO").set(true);
-        item.set(ab[0]); // Undoing a change is simple setting it to the old value (new val: ab[1])
+        if(isRedo) {
+          item.set(ab[1]);
+        } else {
+          item.set(ab[0]); // Undoing a change is simple setting it to the old value (new val: ab[1])
+        }
         item.lens("_UNDO").set(false);
       });
     },
 
     redo: function () {
-      this.state.future.pop()();
+      var f = this.state.future.pop();
+      this.state.history.push(f);
+      f(true);
       this.setState();
     },
 
     undo: function () {
-      this.state.history.pop()();
+      var f = this.state.history.pop();
+      this.state.future.push(f);
+      f(false);
       this.setState();
     },
 
