@@ -202,7 +202,7 @@
       if(isUndo && ev.hasValue() && '_UNDO' in ev.value() && !ev.value()._UNDO)
          return [false, []]
       // If no statechanges: Just put it out:
-      if(isUndo) return [true, []]; //we're in the middle of a state change. No output
+      if(isUndo) return [true, []]; //we're in the middle of a state change. No value
       else return [false, [ev]] // Operating as normal...
     },
 
@@ -237,15 +237,15 @@
     redo: function () {
       var f = this.state.future.pop();
       this.state.history.push(f);
-      f(true);
-      this.setState();
+      f(true); // Redo whatever needs to be redone
+      this.setState(); // refresh UI
     },
 
     undo: function () {
       var f = this.state.history.pop();
       this.state.future.push(f);
-      f(false);
-      this.setState();
+      f(false); // Undo whatever needs to be undone
+      this.setState(); // refresh UI
     },
 
     render: function () {
