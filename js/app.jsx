@@ -17,6 +17,8 @@
 
   var ENTER_KEY = 13;
 
+  var UNDO_FLAG = '_UNDO_';
+
   var TodoApp = React.createClass({
 
     getDefaultProps: function () {
@@ -190,20 +192,20 @@
     onNewItem: function(item) {
       // The undoing of a new item is to delete it:
       this.myPush(this.deleteItem.bind(this,item));
-      // We also listen to any item change now which we also push
+      // We also listen to any changes of the item itself
       item.withStateMachine(false, this.detectUndos).slidingWindow(2,2).
            onValue( this.onModelChange.bind(this,item) );
     },
 
     detectUndos: function(isUndo, ev) {
       // State changes:
-      if(!isUndo && ev.hasValue() && '_UNDO' in ev.value() && ev.value()._UNDO)
-         return [true, []]
-      if(isUndo && ev.hasValue() && '_UNDO' in ev.value() && !ev.value()._UNDO)
-         return [false, []]
-      // If no statechanges: Just put it out:
-      if(isUndo) return [true, []]; //we're in the middle of a state change. No value
-      else return [false, [ev]] // Operating as normal...
+      if(ev.hasValue() && UNDO_FLAG in ev.value())
+         return [!isUndo && ev.value()[UNDO_FLAG], []]
+      // If no state changes: Just put it out:
+      return [isUndo, isUndo?[]:[ev]];
+      // Does this but shorter:
+      //if(isUndo) return [true, []]; //we're in the middle of a state change. No value
+      //else return [false, [ev]] // Operating as normal...
     },
 
     myPush: function(val) {
@@ -213,24 +215,24 @@
 
     deleteItem: function(which, isRedo) {
       // This is implementation specific but we could easily make this a callback props
-      which.lens("_UNDO").set(true);
+      which.lens(UNDO_FLAG).set(true);
       if( isRedo ) {
         which.lens('deleted').set(false);
       } else {
         which.lens('deleted').set(true);
       }
-      which.lens("_UNDO").set(false);
+      which.lens(UNDO_FLAG).set(false);
     },
 
     onModelChange: function(item, ab) {
       this.myPush(function(isRedo) {
-        item.lens("_UNDO").set(true);
+        item.lens(UNDO_FLAG).set(true);
         if(isRedo) {
           item.set(ab[1]);
         } else {
           item.set(ab[0]); // Undoing a change is simple setting it to the old value (new val: ab[1])
         }
-        item.lens("_UNDO").set(false);
+        item.lens(UNDO_FLAG).set(false);
       });
     },
 
@@ -250,8 +252,11 @@
 
     render: function () {
       return <div>
-               <input type="button" value="Undo" ref="undo" onClick={this.undo} />
-               <input type="button" value="Redo" ref="redo" onClick={this.redo} />
+               <input type="button" value="Undo"
+                 disabled={!this.state.history.length} onClick={this.undo} />
+               <input type="button" value="Redo"
+                 disabled={!this.state.future.length} onClick={this.redo} />
+               <br />
                <span>{this.state.history.length} items to go back<br /></span>
                <span>{this.state.future.length} items to go forward<br /></span>
              </div>
