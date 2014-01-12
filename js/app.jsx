@@ -180,6 +180,22 @@
   //////////////////////////////////////////////////////////////////////////////////////////////////
   // Undoing
   //////////////////////////////////////////////////////////////////////////////////////////////////
+  // Random notes:
+  // Bacon.model will 'emit' multiple changes when we set multiple fields at one and not just emit
+  // a single item update. For instance, from the Bacon.Model tests:
+  // root.set({first:"f", last:"l"})
+  //  expect(values).to.deep.equal([
+  //    {}, 
+  //    {first: "f"}, // First emits this
+  //    {first: "f", last: "l"}]) // Then this
+  // Thus,
+  // For more complex models we'd have to also emit a "_IS_TRANSACTION_" item such that
+  // we only have one UNDO for it instead of N.
+  // This should be easy but it's probably worth to create a wrapper something like:
+  // asTransaction(item, function(d){
+  //   d.lens('type').set('link')
+  //   d.lens('data').set('www.example.com')
+  // });
   var UndoComp = React.createClass({
     getInitialState: function() {
       return {history: [], future:[]};
@@ -193,19 +209,24 @@
       // The undoing of a new item is to delete it:
       this.myPush(this.deleteItem.bind(this,item));
       // We also listen to any changes of the item itself
-      item.withStateMachine(false, this.detectUndos).slidingWindow(2,2).
+      item.withStateMachine(false, this.detectAndFilterUndos).slidingWindow(2,2).
            onValue( this.onModelChange.bind(this,item) );
     },
 
-    detectUndos: function(isUndo, ev) {
+    detectAndFilterUndos: function(isUndo, ev) {
       // State changes:
-      if(ev.hasValue() && UNDO_FLAG in ev.value())
-         return [!isUndo && ev.value()[UNDO_FLAG], []]
+      if(ev.hasValue() && UNDO_FLAG in ev.value()) {
+        // This could be optimized into an XOR I think
+        if(!isUndo &&  ev.value()[UNDO_FLAG])
+           return [true, []]; // Entering UNDO state
+        if( isUndo && !ev.value()[UNDO_FLAG])
+           return [false, []]; // Leaving UNDO state
+      }
       // If no state changes: Just put it out:
       return [isUndo, isUndo?[]:[ev]];
       // Does this but shorter:
-      //if(isUndo) return [true, []]; //we're in the middle of a state change. No value
-      //else return [false, [ev]] // Operating as normal...
+      // if(isUndo) return [true, []]; // we're in the middle of a state change. No value
+      // else return [false, [ev]] // Operating as normal...
     },
 
     myPush: function(val) {
@@ -215,28 +236,31 @@
 
     deleteItem: function(which, isRedo) {
       // This is implementation specific but we could easily make this a callback props
-      which.lens(UNDO_FLAG).set(true);
+      which.lens(UNDO_FLAG).set(true); // Start undo "transaction"
       if( isRedo ) {
         which.lens('deleted').set(false);
       } else {
         which.lens('deleted').set(true);
       }
-      which.lens(UNDO_FLAG).set(false);
+      which.lens(UNDO_FLAG).set(false); // End undo "transaction"
     },
 
     onModelChange: function(item, ab) {
+      // Push a function on the stack which reverts the changes of the model
+      // a[0] will be the old value, a[1] is the new one
       this.myPush(function(isRedo) {
-        item.lens(UNDO_FLAG).set(true);
+        item.lens(UNDO_FLAG).set(true); // Start undo "transaction"
         if(isRedo) {
-          item.set(ab[1]);
+          item.set(ab[1]); // Set back to new value
         } else {
-          item.set(ab[0]); // Undoing a change is simple setting it to the old value (new val: ab[1])
+          item.set(ab[0]); // Set back to old value
         }
-        item.lens(UNDO_FLAG).set(false);
+        item.lens(UNDO_FLAG).set(false); // End undo "transaction"
       });
     },
 
     redo: function () {
+      if(this.state.future.length == 0) return; // Would mess things up
       var f = this.state.future.pop();
       this.state.history.push(f);
       f(true); // Redo whatever needs to be redone
@@ -244,6 +268,7 @@
     },
 
     undo: function () {
+      if(this.state.history.length == 0) return; // Would mess things up
       var f = this.state.history.pop();
       this.state.future.push(f);
       f(false); // Undo whatever needs to be undone
@@ -267,6 +292,9 @@
   // Main app hooks
   //////////////////////////////////////////////////////////////////////////////////////////////////
   var itemstream = new Bacon.Bus(); // Event stream
+  // Not the UndoComp only get the bus and knows little about the actual data.
+  // Only must know about "delete flag" which is the dual to a "new item"
+  // All other changes are simply undone by rolling back any data to previous "state"
   React.renderComponent(<UndoComp itemstream={itemstream} />, document.getElementById('undocomp'));
   React.renderComponent(<TodoApp itemstream={itemstream} />, document.getElementById('todoapp'));
   React.renderComponent(
