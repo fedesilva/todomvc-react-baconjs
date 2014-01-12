@@ -1,3 +1,7 @@
+# Demo:
+
+http://hura.github.io/todomvc-react-baconjs
+
 # React TodoMVC with Bacon.js and Bacon.model
 
 This example is very much adapted from the [orignal React
