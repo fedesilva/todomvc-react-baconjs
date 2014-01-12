@@ -33,14 +33,15 @@
     },
 
     handleEdit: function () {
-      // react optimizes renders by batching them. This means you can't call
-      // parent's `onEdit` (which in this case triggeres a re-render), and
+      // react optimizes renders by batching them. This means you can't
       // immediately manipulate the DOM as if the rendering's over. Put it as a
-      // callback. Refer to app.js' `edit` method
-      var node = this.refs.editField.getDOMNode();
-      node.focus();
-      node.setSelectionRange(node.value.length, node.value.length);
-      this.setState({editText: this.props.todo.get().title});
+      // callback.
+      this.setState({editText: this.props.todo.get().title}, function() {
+        var node = this.refs.editField.getDOMNode();
+        node.focus();
+        // Avoid double click selects everything. Put cursor at the end
+        node.setSelectionRange(node.value.length, node.value.length);
+      });
       this.edit();
     },
 

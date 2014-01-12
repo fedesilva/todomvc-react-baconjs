@@ -131,7 +131,6 @@
           <TodoFooter
             count={activeTodoCount}
             completedCount={completedCount}
-            nowShowing={this.state.nowShowing}
             onClearCompleted={this.clearCompleted}
           />;
       }
@@ -171,18 +170,19 @@
   });
 
   var itemstream = new Bacon.Bus(); // Event stream
-  itemstream.log();
+  // itemstream.log();
   itemstream.onValue( function(e) {
-    // console.log("New stuff pushed "+e.toString);
+    console.log("New stuff pushed "+e.toString);
   });
   React.renderComponent(<TodoApp itemstream={itemstream} />, document.getElementById('todoapp'));
   React.renderComponent(
     <div>
       <p>Double-click to edit a todo</p>
       <p>Created by{' '}
-        <a href="http://github.com/petehunt/">petehunt</a>
+        <a href="http://github.com/hura/">hura</a>
       </p>
       <p>Part of{' '}<a href="http://todomvc.com">TodoMVC</a></p>
     </div>,
     document.getElementById('info'));
 })(window, React);
+
