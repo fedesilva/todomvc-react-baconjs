@@ -180,7 +180,6 @@
   //////////////////////////////////////////////////////////////////////////////////////////////////
   var UndoComp = React.createClass({
     getInitialState: function() {
-      //return {undo: 0, redo: 0};
       return {history: [], future:[]};
     },
 
@@ -190,10 +189,31 @@
 
     onNewItem: function(item) {
       // The undoing of a new item is to delete it:
-      var ff = this.deleteItem.bind(this, item);
       this.myPush(this.deleteItem.bind(this,item));
       // We also listen to any item change now which we also push
-      item.slidingWindow(2,2).onValue( this.onModelChange );
+      item.withStateMachine(false, this.detectUndos).slidingWindow(2,2).
+           onValue( this.onModelChange.bind(this,item) );
+    },
+
+    detectUndos: function(isUndo, ev) {
+      // State changes:
+      if(!isUndo && ev.hasValue() && '_UNDO' in ev.value() && ev.value()._UNDO)
+         return [true, []]
+      if(isUndo && ev.hasValue() && '_UNDO' in ev.value() && !ev.value()._UNDO)
+         return [false, []]
+      // If no statechanges: Just put it out:
+      if(isUndo) return [true, []]; //we're in the middle of a state change. No output
+      else return [false, [ev]] // Operating as normal...
+    },
+
+    filterUndo: function(ab) {
+      var a = ab[0], b = ab[1];
+      console.log("Filterundo:");
+      console.log(a);
+      console.log(b);
+      if(("_UNDO" in a) || ("_UNDO" in b)) {
+        return (("_UNDO" in a)===true) && (a._UNDO==false)
+      } else {return true}
     },
 
     myPush: function(val) {
@@ -204,33 +224,28 @@
 
     deleteItem: function(which) {
       // This is implementation specific but we could easily make this a callback props
-      console.log("deleteItem");
-      console.log(which);
+      which.lens("_UNDO").set(true);
       which.lens('deleted').set(true);
+      which.lens("_UNDO").set(false);
     },
 
-    onModelChange: function(oldVal, newVal) {
+    onModelChange: function(item, ab) {
       // When a model changes, the undoing of this is to push the old model value
-      console.log("onModelChange old:"+oldVal);
-      console.log("onModelChange new:"+newVal);
-      //var o = oldVal.get();
-      //var n = newVal;
-      //this.myPush( function() {
-      //  n.set(o);
-      //});
+      this.myPush( function() {
+        item.lens("_UNDO").set(true);
+        item.set(ab[0]); // Undoing a change is simple setting it to the old value (new val: ab[1])
+        item.lens("_UNDO").set(false);
+      });
     },
 
     redo: function () {
-      //
+      this.state.future.pop()();
+      this.setState();
     },
 
     undo: function () {
-      var undoaction = this.state.history.pop();
-      console.log("Undoaction:");
-      console.log(undoaction);
-      undoaction();
+      this.state.history.pop()();
       this.setState();
-      // this.state.future.push(undoaction
     },
 
     render: function () {
