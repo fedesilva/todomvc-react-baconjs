@@ -34,6 +34,10 @@
       };
     },
 
+    componentDidUpdate: function () {
+      //Utils.store('react-todos', this.state.todos);
+    },
+
     componentDidMount: function () {
       var router = Router({
                  '/': this.setState.bind(this, {nowShowing: ALL_TODOS}),
@@ -46,6 +50,9 @@
       this.props.itemstream.onValue(this.someThingChanged);
     },
 
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // Own methods
+    ////////////////////////////////////////////////////////////////////////////////////////////////
     someThingChanged: function() {
       this.setState();
     },
@@ -89,10 +96,9 @@
       this.someThingChanged();
     },
 
-    componentDidUpdate: function () {
-      //Utils.store('react-todos', this.state.todos);
-    },
-
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // Rendering
+    ////////////////////////////////////////////////////////////////////////////////////////////////
     render: function () {
       var footer = null;
       var main = null;
@@ -169,11 +175,79 @@
     }
   });
 
-  var itemstream = new Bacon.Bus(); // Event stream
-  // itemstream.log();
-  itemstream.onValue( function(e) {
-    console.log("New stuff pushed "+e.toString);
+  //////////////////////////////////////////////////////////////////////////////////////////////////
+  // Undoing
+  //////////////////////////////////////////////////////////////////////////////////////////////////
+  var UndoComp = React.createClass({
+    getInitialState: function() {
+      //return {undo: 0, redo: 0};
+      return {history: [], future:[]};
+    },
+
+    componentDidMount: function() {
+      this.props.itemstream.onValue( this.onNewItem );
+    },
+
+    onNewItem: function(item) {
+      // The undoing of a new item is to delete it:
+      var ff = this.deleteItem.bind(this, item);
+      this.myPush(this.deleteItem.bind(this,item));
+      // We also listen to any item change now which we also push
+      item.slidingWindow(2,2).onValue( this.onModelChange );
+    },
+
+    myPush: function(val) {
+      console.assert(typeof val == 'function');
+      this.state.history.push(val);
+      this.setState();
+    },
+
+    deleteItem: function(which) {
+      // This is implementation specific but we could easily make this a callback props
+      console.log("deleteItem");
+      console.log(which);
+      which.lens('deleted').set(true);
+    },
+
+    onModelChange: function(oldVal, newVal) {
+      // When a model changes, the undoing of this is to push the old model value
+      console.log("onModelChange old:"+oldVal);
+      console.log("onModelChange new:"+newVal);
+      //var o = oldVal.get();
+      //var n = newVal;
+      //this.myPush( function() {
+      //  n.set(o);
+      //});
+    },
+
+    redo: function () {
+      //
+    },
+
+    undo: function () {
+      var undoaction = this.state.history.pop();
+      console.log("Undoaction:");
+      console.log(undoaction);
+      undoaction();
+      this.setState();
+      // this.state.future.push(undoaction
+    },
+
+    render: function () {
+      return <div>
+               <input type="button" value="Undo" ref="undo" onClick={this.undo} />
+               <input type="button" value="Redo" ref="redo" onClick={this.redo} />
+               <span>{this.state.history.length} items to go back<br /></span>
+               <span>{this.state.future.length} items to go forward<br /></span>
+             </div>
+    },
   });
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////
+  // Main app hooks
+  //////////////////////////////////////////////////////////////////////////////////////////////////
+  var itemstream = new Bacon.Bus(); // Event stream
+  React.renderComponent(<UndoComp itemstream={itemstream} />, document.getElementById('undocomp'));
   React.renderComponent(<TodoApp itemstream={itemstream} />, document.getElementById('todoapp'));
   React.renderComponent(
     <div>
