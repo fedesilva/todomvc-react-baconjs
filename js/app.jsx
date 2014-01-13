@@ -224,6 +224,7 @@
            // BUG: We have to emit an item here if we undo so that if we change
            // something after an undo that the right element is in the "pipe"
            // (for the oldval of onModelChange)
+           // Thoughts: Maybe use a statemachine after the slidingWindow()?
          }
       }
       // If no state changes: Just put it out:
@@ -244,19 +245,10 @@
 
     onModelChange: function(item, ab) {
       // Push a function on the stack which reverts the changes of the model
-      // a[0] will be the old value, a[1] is the new one
-      var newV = ab[1], oldV = ab[0];
-      console.log("Old & New:")
-      console.log(oldV)
-      console.log(newV)
-      console.log("================");
+      // var newV = ab[1], oldV = ab[0];
       this.myPush(function(isRedo) {
         item.lens(UNDO_FLAG).set(true); // Start undo "transaction"
-        if(isRedo) {
-          item.set(newV); // Set back to new value
-        } else {
-          item.set(oldV); // Set back to old value
-        }
+        item.set(ab[isRedo+0]); // Set back to new/old value
         item.lens(UNDO_FLAG).set(false); // End undo "transaction"
       });
     },
