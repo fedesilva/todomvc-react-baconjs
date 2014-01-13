@@ -210,23 +210,24 @@
       this.myPush(this.deleteItem.bind(this,item));
       // We also listen to any changes of the item itself
       item.withStateMachine(false, this.detectAndFilterUndos).slidingWindow(2,2).
-           onValue( this.onModelChange.bind(this,item) );
+           onValue( this.onModelChange.bind(this, item) );
     },
 
     detectAndFilterUndos: function(isUndo, ev) {
       // State changes:
-      if(ev.hasValue() && UNDO_FLAG in ev.value()) {
+      if(ev.hasValue() && (UNDO_FLAG in ev.value())) {
         // This could be optimized into an XOR I think
         if(!isUndo &&  ev.value()[UNDO_FLAG])
-           return [true, []]; // Entering UNDO state
-        if( isUndo && !ev.value()[UNDO_FLAG])
-           return [false, []]; // Leaving UNDO state
+           return [true, []]; // Entering UNDO state, no item to emit
+        if( isUndo && !ev.value()[UNDO_FLAG]) {
+           return [false, []]; // Leaving UNDO state, no item to emit
+           // BUG: We have to emit an item here if we undo so that if we change
+           // something after an undo that the right element is in the "pipe"
+           // (for the oldval of onModelChange)
+         }
       }
       // If no state changes: Just put it out:
-      return [isUndo, isUndo?[]:[ev]];
-      // Does this but shorter:
-      // if(isUndo) return [true, []]; // we're in the middle of a state change. No value
-      // else return [false, [ev]] // Operating as normal...
+      return [isUndo, isUndo ? [] : [ev]];
     },
 
     myPush: function(val) {
@@ -237,23 +238,24 @@
     deleteItem: function(which, isRedo) {
       // This is implementation specific but we could easily make this a callback props
       which.lens(UNDO_FLAG).set(true); // Start undo "transaction"
-      if( isRedo ) {
-        which.lens('deleted').set(false);
-      } else {
-        which.lens('deleted').set(true);
-      }
+      which.lens('deleted').set(!isRedo);
       which.lens(UNDO_FLAG).set(false); // End undo "transaction"
     },
 
     onModelChange: function(item, ab) {
       // Push a function on the stack which reverts the changes of the model
       // a[0] will be the old value, a[1] is the new one
+      var newV = ab[1], oldV = ab[0];
+      console.log("Old & New:")
+      console.log(oldV)
+      console.log(newV)
+      console.log("================");
       this.myPush(function(isRedo) {
         item.lens(UNDO_FLAG).set(true); // Start undo "transaction"
         if(isRedo) {
-          item.set(ab[1]); // Set back to new value
+          item.set(newV); // Set back to new value
         } else {
-          item.set(ab[0]); // Set back to old value
+          item.set(oldV); // Set back to old value
         }
         item.lens(UNDO_FLAG).set(false); // End undo "transaction"
       });
@@ -262,16 +264,16 @@
     redo: function () {
       if(this.state.future.length == 0) return; // Would mess things up
       var f = this.state.future.pop();
-      this.state.history.push(f);
       f(true); // Redo whatever needs to be redone
+      this.state.history.push(f);
       this.setState(); // refresh UI
     },
 
     undo: function () {
       if(this.state.history.length == 0) return; // Would mess things up
       var f = this.state.history.pop();
-      this.state.future.push(f);
       f(false); // Undo whatever needs to be undone
+      this.state.future.push(f);
       this.setState(); // refresh UI
     },
 
